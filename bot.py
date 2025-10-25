@@ -104,12 +104,30 @@ async def track_channel_member(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"Ошибка при блокировке пользователя {user.full_name} (ID: {user.id}): {e}"
                 )
 
-        # Логируем другие изменения статуса для отладки
+        # Проверяем специальные случаи для детального логирования
         elif old_status != new_status:
-            logger.info(
-                f"Изменение статуса: {user.full_name} "
-                f"(ID: {user.id}) | {old_status} -> {new_status}"
-            )
+            # Случай 1: Администратор разблокировал пользователя
+            if old_status == ChatMemberStatus.KICKED and new_status == ChatMemberStatus.LEFT:
+                logger.info(
+                    f"✓ Администратор разблокировал пользователя: {user.full_name} "
+                    f"(ID: {user.id}, Username: @{user.username or 'нет'}) "
+                    f"| {old_status} -> {new_status}"
+                )
+
+            # Случай 2: Пользователь подписался на канал (возможно после разблокировки)
+            elif old_status == ChatMemberStatus.LEFT and new_status == ChatMemberStatus.MEMBER:
+                logger.info(
+                    f"→ Пользователь подписался на канал: {user.full_name} "
+                    f"(ID: {user.id}, Username: @{user.username or 'нет'}) "
+                    f"| {old_status} -> {new_status}"
+                )
+
+            # Случай 3: Любые другие изменения статуса
+            else:
+                logger.info(
+                    f"Изменение статуса: {user.full_name} "
+                    f"(ID: {user.id}) | {old_status} -> {new_status}"
+                )
 
     except Exception as e:
         logger.error(f"Ошибка в обработчике track_channel_member: {e}", exc_info=True)
