@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Telegram Bot для автоматической блокировки пользователей, покинувших канал.
+Telegram Bot для автоматической блокировки пользователей, отписавшихся от канала.
+
+Этот бот специально разработан для Telegram каналов (не групп).
+Он отслеживает подписчиков и блокирует тех, кто отписался.
 """
 
 import os
@@ -46,18 +49,18 @@ except ValueError:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start"""
     await update.message.reply_text(
-        "Бот запущен и отслеживает выходы пользователей из канала.\n"
-        "Пользователи, покинувшие канал, будут автоматически заблокированы."
+        "Бот запущен и отслеживает отписки от канала.\n"
+        "Пользователи, отписавшиеся от канала, будут автоматически заблокированы."
     )
 
 
 async def track_channel_member(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Отслеживает изменения статуса участников канала.
-    Блокирует пользователей, которые покинули канал.
+    Отслеживает изменения статуса подписчиков канала.
+    Блокирует пользователей, которые отписались от канала.
     """
     try:
-        # Получаем информацию об изменении статуса участника
+        # Получаем информацию об изменении статуса подписчика
         result = update.my_chat_member or update.chat_member
 
         if not result:
@@ -75,13 +78,14 @@ async def track_channel_member(update: Update, context: ContextTypes.DEFAULT_TYP
         if user.is_bot:
             return
 
-        # Проверяем, покинул ли пользователь канал
-        left_channel = (
+        # Проверяем, отписался ли пользователь от канала
+        # member = подписан, left = отписался
+        unsubscribed = (
             old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
             and new_status in [ChatMemberStatus.LEFT, ChatMemberStatus.KICKED]
         )
 
-        if left_channel:
+        if unsubscribed:
             try:
                 # Блокируем пользователя в канале
                 await context.bot.ban_chat_member(
@@ -90,9 +94,9 @@ async def track_channel_member(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
 
                 logger.info(
-                    f"Пользователь заблокирован: {user.full_name} "
+                    f"Пользователь отписался и заблокирован: {user.full_name} "
                     f"(ID: {user.id}, Username: @{user.username or 'нет'}) "
-                    f"| Старый статус: {old_status} -> Новый статус: {new_status}"
+                    f"| {old_status} (подписан) -> {new_status} (отписался)"
                 )
 
             except Exception as e:
@@ -139,8 +143,10 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("stats", stats))
 
-    # Регистрируем обработчик изменений статуса участников
-    # ChatMemberHandler отслеживает изменения в статусе участников
+    # Регистрируем обработчик изменений статуса подписчиков канала
+    # ChatMemberHandler отслеживает подписки/отписки в канале
+    # MY_CHAT_MEMBER - изменения статуса самого бота
+    # CHAT_MEMBER - изменения статуса других пользователей (подписки/отписки)
     application.add_handler(
         ChatMemberHandler(track_channel_member, ChatMemberHandler.MY_CHAT_MEMBER)
     )
